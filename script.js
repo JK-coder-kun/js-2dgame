@@ -2,61 +2,68 @@
 const canvas = document.getElementById("canvas1");
 const ctx = canvas.getContext("2d");
 CANVAS_WIDTH = canvas.width = 500;
-CANVAS_HEIGHT = canvas.height = 1000;
-const numberOfEnemies = 10;
-let gameFrame = 0;
-let enemiesArray = [];
+CANVAS_HEIGHT = canvas.height = 700;
+let canvasPostion = canvas.getBoundingClientRect();
+let explosions = [];
 
-
-
-class Enemy{
-    constructor(){
+class Explosion{
+    constructor(x,y){
+        this.spriteWidth = 200;
+        this.spriteHeight = 179;
+        this.width = this.spriteWidth*0.7;
+        this.height = this.spriteHeight*0.7;
+        this.x = x;
+        this.y = y;
         this.image = new Image();
-        this.image.src = "enemy4.png"
-        this.speed = Math.random()*4 + 1;
-        this.spriteWidth = 213;
-        this.spriteHeight = 213;
-        this.width = this.spriteWidth/2.5;
-        this.height = this.spriteHeight/2.5;
-        this.x = Math.random()*(CANVAS_WIDTH-this.width);
-        this.y = Math.random()*(CANVAS_HEIGHT-this.height);
-        this.newX = Math.random()*(CANVAS_WIDTH-this.width);
-        this.newY = Math.random()*(CANVAS_HEIGHT-this.height);
+        this.image.src = "boom.png";
         this.frame = 0;
-        this.flapSpeed = Math.floor(Math.random()*3 +1);
-        this.interval = Math.floor(Math.random()*200 +50);
+        this.timer = 0;
+        this.angle = Math.random() * 6.2 ;
+        this.sound = new Audio();
+        this.sound.src = "boom.wav";
     }
     update(){
-        if(gameFrame % this.interval == 0){
-            this.newX = Math.random()*(CANVAS_WIDTH-this.width);
-            this.newY = Math.random()*(CANVAS_HEIGHT-this.height);
+        if(this.frame === 0){
+            this.sound.play();
         }
-        let dx = this.x - this.newX;
-        let dy = this.y - this.newY;
-        this.x -= dx/70;
-        this.y -= dy/70;
-        if(this.x + this.width < 0 )this.x = CANVAS_WIDTH;
-        //animate sprite
-        if(gameFrame % this.flapSpeed === 0 ){
-            this.frame > 4 ? this.frame = 0 : this.frame++;
+        this.timer++;
+        if(this.timer % 10 == 0){
+            this.frame++;
         }
     }
     draw(){
-        ctx.drawImage(this.image,this.frame * this.spriteWidth ,0 ,this.spriteWidth, this.spriteHeight, this.x, this.y, this.width, this.height);
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        ctx.drawImage(this.image,this.spriteWidth * this.frame, 0, this.spriteWidth, this.spriteHeight, 0-this.width/2, 0-this.height/2, this.width, this.height);
+        ctx.restore();
     }
-};
+}
 
-for(let i = 0; i < numberOfEnemies; i++){
-    enemiesArray.push(new Enemy());
+window.addEventListener("click",function(e){
+    createAnimation(e)
+});
+
+// window.addEventListener("mousemove",function(e){
+//     createAnimation(e)
+// });
+
+function createAnimation(e){
+    let positionX = e.x - canvasPostion.left;
+    let positionY = e.y -canvasPostion.top;
+    explosions.push(new Explosion(positionX, positionY));
 }
 
 function animate(){
-    ctx.clearRect(0,0,CANVAS_WIDTH,CANVAS_HEIGHT);
-    enemiesArray.forEach(enemy=>{
-        enemy.update();
-        enemy.draw();
-    })
-    gameFrame++;
+    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    for(let i=0;i<explosions.length;i++){
+        explosions[i].update();
+        explosions[i].draw();
+        if(explosions[i].frame > 5){
+            explosions.splice(i,1);
+            i--;
+        }
+    }
     requestAnimationFrame(animate);
 }
 
