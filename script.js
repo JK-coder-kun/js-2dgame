@@ -1,70 +1,184 @@
 /**@type{HTMLCanvasElement} */
 const canvas = document.getElementById("canvas1");
 const ctx = canvas.getContext("2d");
-CANVAS_WIDTH = canvas.width = 500;
-CANVAS_HEIGHT = canvas.height = 700;
-let canvasPostion = canvas.getBoundingClientRect();
-let explosions = [];
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-class Explosion{
-    constructor(x,y){
-        this.spriteWidth = 200;
-        this.spriteHeight = 179;
-        this.width = this.spriteWidth*0.7;
-        this.height = this.spriteHeight*0.7;
-        this.x = x;
-        this.y = y;
+const collisionCanvas = document.getElementById("collisionCanvas");
+const collisionCtx = collisionCanvas.getContext("2d");
+collisionCanvas.width = window.innerWidth;
+collisionCanvas.height = window.innerHeight;
+
+let timeToNextRaven = 0;
+let ravenTimeInterval = 1000;
+let lastTime = 0;
+let score = 0;
+let gameOver = false;
+ctx.font = "50px impact"
+
+let ravens = [];
+class Raven {
+    constructor(){
+        this.spriteWidth = 271;
+        this.spriteHeight = 194;
+        this.sizeModifier = Math.random() * 0.6 + 0.4;
+        this.width = this.spriteWidth * this.sizeModifier;
+        this.height = this.spriteHeight * this.sizeModifier;
+        this.x = canvas.width;
+        this.y = Math.random() * (canvas.height-this.height);
+        this.directionX = Math.random() * 5 + 3;
+        this.directionY = Math.random() * 5 -2.5;
+        this.markedForDeletion = false;
         this.image = new Image();
-        this.image.src = "boom.png";
+        this.image.src = "raven.png";
         this.frame = 0;
-        this.timer = 0;
-        this.angle = Math.random() * 6.2 ;
-        this.sound = new Audio();
-        this.sound.src = "boom.wav";
+        this.maxFrame = 4;
+        this.timeSinceFlap = 0;
+        this.flapInterval = 150/this.directionX;
+        this.randomColor = [Math.floor(Math.random()* 255),Math.floor(Math.random()* 255),Math.floor(Math.random()* 255)];
+        this.color = 'rgb('+this.randomColor[0]+','+this.randomColor[1]+','+this.randomColor[2]+')';
+        this.hasTrail = Math.random() > 0.5;
+    }
+    update(deltaTime){
+        if(this.y < 0 || this.y > (canvas.height - this.height)){
+            this.directionY = this.directionY * -1;
+        }
+        this.x -= this.directionX;
+        this.y += this.directionY;
+        if(this.x < 0 - this.width) this.markedForDeletion = true;
+        this.timeSinceFlap += deltaTime;
+        if(this.timeSinceFlap > this.flapInterval){
+            if(this.frame > this.maxFrame) this.frame = 0;
+            else this.frame ++;
+            this.timeSinceFlap = 0;
+            if(this.hasTrail){
+                for(let i=0;i<5;i++){
+                    particles.push(new Particle(this.x,this.y,this.width,this.color));
+                }
+            }
+        }
+        
+        if(this.x < 0-this.width)gameOver = true;
+
+    }
+    draw(){
+        collisionCtx.fillStyle=this.color;
+        collisionCtx.fillRect(this.x,this.y,this.width,this.height);
+        ctx.drawImage(this.image,this.spriteWidth*this.frame,0,this.spriteWidth,this.spriteHeight,this.x,this.y,this.width,this.height)
+    }
+}
+
+let particles = [];
+class Particle{
+    constructor(x,y,size,color){
+        this.size = size;
+        this.x = x+this.size/2  + Math.random()*50 -25;
+        this.y = y+this.size/3  + Math.random()*50 -25;
+        this.color = color;
+        this.radius = Math.random() * this.size/10;
+        this.maxRadius = Math.random() * 20 +20;
+        this.markedForDeletion = false;
+        this.speedX = Math.random()*1 +0.5;
     }
     update(){
-        if(this.frame === 0){
-            this.sound.play();
-        }
-        this.timer++;
-        if(this.timer % 10 == 0){
-            this.frame++;
-        }
+        this.x += this.speedX;
+        this.radius += 0.3;
+        if(this.radius > this.maxRadius-5)this.markedForDeletion = true;
     }
     draw(){
         ctx.save();
-        ctx.translate(this.x, this.y);
-        ctx.rotate(this.angle);
-        ctx.drawImage(this.image,this.spriteWidth * this.frame, 0, this.spriteWidth, this.spriteHeight, 0-this.width/2, 0-this.height/2, this.width, this.height);
+        ctx.globalAlpha = 1- this.radius/this.maxRadius;
+        ctx.beginPath();
+        ctx.fillStyle=this.color;
+        ctx.arc(this.x,this.y,this.radius,0,Math.PI*2);
+        ctx.fill();
         ctx.restore();
     }
 }
 
-window.addEventListener("click",function(e){
-    createAnimation(e)
-});
 
-// window.addEventListener("mousemove",function(e){
-//     createAnimation(e)
-// });
+let explosions=[];
 
-function createAnimation(e){
-    let positionX = e.x - canvasPostion.left;
-    let positionY = e.y -canvasPostion.top;
-    explosions.push(new Explosion(positionX, positionY));
-}
-
-function animate(){
-    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    for(let i=0;i<explosions.length;i++){
-        explosions[i].update();
-        explosions[i].draw();
-        if(explosions[i].frame > 5){
-            explosions.splice(i,1);
-            i--;
+class Explosion{
+    constructor(x,y,size){
+        this.image = new Image();
+        this.image.src = "boom.png";
+        this.spriteWidth = 200;
+        this.spriteHeight = 179;
+        this.x = x;
+        this.y =y;
+        this.size = size;
+        this.frame = 0;
+        this.sound = new Audio();
+        this.sound.src = "boom.wav";
+        this.timeSinceLastFrame = 0;
+        this.frameInterval = 200;
+        this.markedForDeletion = false;
+    }
+    update(deltaTime){
+        if(this.frame == 0) this.sound.play();
+        this.timeSinceLastFrame += deltaTime;
+        if(this.timeSinceLastFrame > this.frameInterval){
+            this.frame ++;
+            this.timeSinceLastFrame = 0;
+            if(this.frame > 5)this.markedForDeletion = true;
         }
     }
-    requestAnimationFrame(animate);
+    draw(){
+        ctx.drawImage(this.image,this.spriteWidth*this.frame,0,this.spriteWidth,this.spriteHeight,this.x,this.y- this.size/4,this.size,this.size);
+    }
 }
 
-animate();
+
+window.addEventListener('click',function(e){
+    const detectPixelColor = collisionCtx.getImageData(e.x,e.y,1,1);
+    const pc = detectPixelColor.data;
+    ravens.forEach(object=>{
+        if(object.randomColor[0]==pc[0] && object.randomColor[1]==pc[1]&&object.randomColor[2]==pc[2]){
+            //collision detected
+            object.markedForDeletion = true;
+            score++;
+            explosions.push(new Explosion(object.x,object.y,object.width));
+            console.log(explosions);
+        }
+    })
+});
+
+function drawScore(){
+    ctx.fillStyle = 'black';
+    ctx.fillText('Score : ' + score,50,70);
+    ctx.fillStyle = 'white';
+    ctx.fillText('Score : '+score,55,75);
+}
+
+function drawGameOver(){
+    ctx.textAlign = 'center';
+    ctx.fillStyle = "black";
+    ctx.fillText("GAME OVER, your score is "+score,canvas.width/2,canvas.height/2);
+    ctx.fillStyle = "white";
+    ctx.fillText("GAME OVER, your score is "+score,canvas.width/2+5,canvas.height/2+5);
+}
+
+function animate(timestamp){
+    collisionCtx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let deltaTime = timestamp - lastTime;
+    lastTime = timestamp;
+    timeToNextRaven += deltaTime;
+    if(timeToNextRaven > ravenTimeInterval){
+        ravens.push(new Raven());
+        timeToNextRaven = 0;
+        ravens.sort(function(a,b){
+            return a.width - b.width;
+        })
+    }
+    drawScore();
+    [...particles,...ravens,...explosions].forEach(object=>object.update(deltaTime));
+    [...particles,...ravens,...explosions].forEach(object=>object.draw());
+    ravens = ravens.filter(object=> !object.markedForDeletion);
+    explosions = explosions.filter(object=> !object.markedForDeletion);
+    particles = particles.filter(object=> !object.markedForDeletion);
+    if(!gameOver)requestAnimationFrame(animate);
+    else drawGameOver();
+}
+animate(0);
