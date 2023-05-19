@@ -1,7 +1,8 @@
 window.addEventListener('load',function(e){
     const canvas = document.getElementById("canvas1");
     const ctx = canvas.getContext('2d');
-    canvas.width = 800;
+    const fullScreenButton = this.document.getElementById('fullScreenButton');
+    canvas.width = 1400;
     canvas.height = 720;
     let enemies = [];
     let score = 0;
@@ -10,6 +11,8 @@ window.addEventListener('load',function(e){
     class InputHandler{
         constructor(){
             this.keys = [];
+            this.touchY = '';
+            this.touchtreshold = 30;
             window.addEventListener('keydown',(e)=>{
                 if((e.key == 'ArrowDown'||
                     e.key == 'ArrowUp'||
@@ -17,8 +20,7 @@ window.addEventListener('load',function(e){
                     e.key == 'ArrowRight')
                  && this.keys.indexOf(e.key) === -1){
                     this.keys.push(e.key);
-                }
-                console.log(e.key,this.keys)
+                }else if(e.key == 'Enter' && gameOver) restartGame(); 
             });
             window.addEventListener('keyup',(e)=>{
                 if( e.key == 'ArrowDown'||
@@ -27,7 +29,21 @@ window.addEventListener('load',function(e){
                     e.key == 'ArrowRight'){
                     this.keys.splice(this.keys.indexOf(e.key),1);
                 }
-                console.log(e.key,this.keys)
+            });
+            window.addEventListener('touchstart',e=>{
+                this.touchY = e.changedTouches[0].pageY;
+            });
+            window.addEventListener('touchmove',e=>{
+                const swipeDistance = e.changedTouches[0].pageY - this.touchY;
+                if(swipeDistance < -this.touchtreshold && this.keys.indexOf('swipe up')=== -1)this.keys.push('swipe up')
+                else if(swipeDistance > this.touchtreshold && this.keys.indexOf('swipe down')=== -1) {
+                    this.keys.push('swipe down');
+                    if(gameOver) restartGame();
+                }
+            });
+            window.addEventListener('touchend',e=>{
+                 this.keys.splice(this.keys.indexOf('swipe up'),1);
+                this.keys.splice(this.keys.indexOf('swipe down'),1);
             });
         }
     }
@@ -51,25 +67,27 @@ window.addEventListener('load',function(e){
             this.frameTimer = 0;
             this.frameInterval = 1000/this.fps;
         }
+        restart(){
+            this.x = 100;
+            this.y = this.gameHeight - this.height;
+            this.maxFrame = 8;
+            this.frameY = 0;
+        }
         draw(context){
+            // context.lineWidth = 5;
             // context.strokeStyle='white'
-            // context.strokeRect(this.x,this.y,this.width,this.height); 
             // context.beginPath();
-            // context.arc(this.x+this.width/2,this.y+this.height/2,this.width/2,this.height/2,0,Math.PI*2);
-            // context.stroke();
-            // context.strokeStyle = 'blue';
-            // context.beginPath();
-            // context.arc(this.x, this.y, this.width/2,0,Math.PI*2);
+            // context.arc(this.x+this.width/2,this.y+this.height/2+20,this.width/3,0,Math.PI*2);
             // context.stroke();
             context.drawImage(this.image,this.frameX * this.width,this.frameY * this.height,this.width,this.height,this.x,this.y,this.width,this.height);
         }
         update(input,deltatime,enemies){
             //collision detection
             enemies.forEach(enemy=>{
-                const dx = (enemy.x+enemy.width/2) - (this.x+this.width/2);
-                const dy = (enemy.y+enemy.height/2) - (this.y+this.height/2);
+                const dx = (enemy.x+enemy.width/2-20) - (this.x+this.width/2);
+                const dy = (enemy.y+enemy.height/2) - (this.y+this.height/2+20);
                 const distance = Math.sqrt(dx*dx+dy*dy);
-                if(distance < this.width/2+enemy.width/2){
+                if(distance < this.width/3+enemy.width/3){
                     gameOver = true;
                 }
             })
@@ -86,7 +104,7 @@ window.addEventListener('load',function(e){
                 this.speed = 5;
             }else if(input.keys.indexOf('ArrowLeft') > -1){
                 this.speed = -5;
-            }else if(input.keys.indexOf('ArrowUp') > -1 && this.onGround()){
+            }else if((input.keys.indexOf('ArrowUp') > -1 || input.keys.indexOf('swipe up') > -1) && this.onGround()){
                 this.vy = -30;
             }else{
                 this.speed = 0;
@@ -122,7 +140,10 @@ window.addEventListener('load',function(e){
             this.y = 0;
             this.width = 2400;
             this.height = 720;
-            this.speed = 20;
+            this.speed = 7;
+        }
+        restart(){
+            this.x = 0;
         }
         draw(context){
             context.drawImage(this.image,this.x,this.y,this.width,this.height);
@@ -152,16 +173,11 @@ window.addEventListener('load',function(e){
             this.markedForDeletion = false;
         }
         draw(context){
-            // context.strokeStyle='white'
-            // context.strokeRect(this.x,this.y,this.width,this.height);
-            // context.beginPath();
-            // context.arc(this.x+this.width/2,this.y+this.height/2,this.width/2,0,Math.PI*2);
-            // context.stroke();
-            // context.strokeStyle = 'blue';
-            // context.beginPath();
-            // context.arc(this.x, this.y, this.width/2,0,Math.PI*2);
-            // context.stroke();
             context.drawImage(this.image,this.frameX * this.width,0,this.width,this.height,this.x,this.y,this.width,this.height);
+            // context.strokeStyle='white'
+            // context.beginPath();
+            // context.arc(this.x+this.width/2-20,this.y+this.height/2,this.width/3,0,Math.PI*2);
+            // context.stroke();
         }
         update(deltatime){
             if(this.frameTimer > this.frameInterval){
@@ -194,6 +210,7 @@ window.addEventListener('load',function(e){
     }
 
     function displayStatusText(context){
+        context.textAlign = 'left';
         context.fillStyle = 'black';
         context.font = "40px Helvetica";
         context.fillText('Score : '+score,20,50);
@@ -203,12 +220,33 @@ window.addEventListener('load',function(e){
         if(gameOver){
             context.textAlign ='center';
             context.fillStyle = 'black';
-            context.fillText('Game Over, try again!',canvas.width/2,200);
+            context.fillText('Game Over, Press enter or swipe down to restart!',canvas.width/2,200);
             context.textAlign ='center';
             context.fillStyle = 'white';
-            context.fillText('Game Over, try again!',canvas.width/2+2,202);
+            context.fillText('Game Over, Press enter or swipe down to restart!',canvas.width/2+2,202);
         }
     }
+
+    function restartGame(){
+        player.restart();
+        background.restart();
+        enemies = [];
+        score = 0;
+        gameOver = false;
+        animate(0);
+    }
+
+    function toggleFullScreen(){
+        console.log(document.fullscreenElement);
+        if(!document.fullscreenElement){
+            canvas.requestFullscreen().catch(err=>{
+                alert(`Error,can't enable full-screen mode: ${err.message}`);
+            });
+        }else{
+            document.exitFullscreen();
+        }
+    }
+    fullScreenButton.addEventListener('click',toggleFullScreen);
 
     const input = new InputHandler();
     const player = new Player(canvas.width,canvas.height);
@@ -224,7 +262,7 @@ window.addEventListener('load',function(e){
         lastTime = timestamp;
         ctx.clearRect(0,0,canvas.width,canvas.height);
         background.draw(ctx);
-        //background.update();
+        background.update();
         player.draw(ctx);
         player.update(input,deltatime,enemies);
         handleEnemies(deltatime);
