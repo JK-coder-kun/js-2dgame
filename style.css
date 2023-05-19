@@ -1,11 +1,12 @@
+body{
+    background-color: black;
+}
 #canvas1{
-    border: 3px solid black;
+    border: 5px solid white;
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%,-50%);
-    width: 500px;
-    height: 800px;
 }
 img{
     display: none;

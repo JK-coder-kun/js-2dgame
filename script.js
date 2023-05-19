@@ -1,155 +1,237 @@
-/**@type{HTMLCanvasElement} */
-document.addEventListener('DOMContentLoaded',function(){
+window.addEventListener('load',function(e){
     const canvas = document.getElementById("canvas1");
-    const ctx = canvas.getContext("2d");
-    canvas.width = 500;
-    canvas.height = 800;
+    const ctx = canvas.getContext('2d');
+    canvas.width = 800;
+    canvas.height = 720;
+    let enemies = [];
+    let score = 0;
+    let gameOver = false;
 
-    class Game{
-        constructor(ctx,width,height){
-            this.ctx = ctx;
-            this.width = width;
-            this.height = height;
-            this.enemies = [];
-            this.enemyTimer = 0;
-            this.enemyInterval = 500;
-            this.enemyTypes = ['worm','ghost','spider'];
+    class InputHandler{
+        constructor(){
+            this.keys = [];
+            window.addEventListener('keydown',(e)=>{
+                if((e.key == 'ArrowDown'||
+                    e.key == 'ArrowUp'||
+                    e.key == 'ArrowLeft'||
+                    e.key == 'ArrowRight')
+                 && this.keys.indexOf(e.key) === -1){
+                    this.keys.push(e.key);
+                }
+                console.log(e.key,this.keys)
+            });
+            window.addEventListener('keyup',(e)=>{
+                if( e.key == 'ArrowDown'||
+                    e.key == 'ArrowUp'||
+                    e.key == 'ArrowLeft'||
+                    e.key == 'ArrowRight'){
+                    this.keys.splice(this.keys.indexOf(e.key),1);
+                }
+                console.log(e.key,this.keys)
+            });
         }
-        update(deltatime){
-            this.enemies = this.enemies.filter(object => !object.markedForDeletion);
-            if(this.enemyTimer > this.enemyInterval){
-                this.#addNewEnemy();
-                this.enemyTimer = 0;
-                console.log(this.enemies)
+    }
+
+    class Player{
+        constructor(gameWidth,gameHeight){
+            this.gameWidth = gameWidth;
+            this.gameHeight = gameHeight;
+            this.width = 200;
+            this.height = 200;
+            this.x = 0;
+            this.y = this.gameHeight-this.height;
+            this.image = document.getElementById('playerImage');
+            this.frameX = 0;
+            this.maxFrame = 8;
+            this.frameY = 0;
+            this.speed = 0;
+            this.vy = 0;
+            this.weight = 1;
+            this.fps = 20;
+            this.frameTimer = 0;
+            this.frameInterval = 1000/this.fps;
+        }
+        draw(context){
+            // context.strokeStyle='white'
+            // context.strokeRect(this.x,this.y,this.width,this.height); 
+            // context.beginPath();
+            // context.arc(this.x+this.width/2,this.y+this.height/2,this.width/2,this.height/2,0,Math.PI*2);
+            // context.stroke();
+            // context.strokeStyle = 'blue';
+            // context.beginPath();
+            // context.arc(this.x, this.y, this.width/2,0,Math.PI*2);
+            // context.stroke();
+            context.drawImage(this.image,this.frameX * this.width,this.frameY * this.height,this.width,this.height,this.x,this.y,this.width,this.height);
+        }
+        update(input,deltatime,enemies){
+            //collision detection
+            enemies.forEach(enemy=>{
+                const dx = (enemy.x+enemy.width/2) - (this.x+this.width/2);
+                const dy = (enemy.y+enemy.height/2) - (this.y+this.height/2);
+                const distance = Math.sqrt(dx*dx+dy*dy);
+                if(distance < this.width/2+enemy.width/2){
+                    gameOver = true;
+                }
+            })
+            //sprite animation
+            if(this.frameTimer > this.frameInterval){
+                if(this.frameX >= this.maxFrame)this.frameX = 0;
+                else this.frameX++;
+                this.frameTimer = 0;
             }else{
-                this.enemyTimer+= deltatime;
+                this.frameTimer += deltatime;
             }
-            this.enemies.forEach(object=>object.update(deltatime));
+            //control movement
+            if(input.keys.indexOf('ArrowRight') > -1){
+                this.speed = 5;
+            }else if(input.keys.indexOf('ArrowLeft') > -1){
+                this.speed = -5;
+            }else if(input.keys.indexOf('ArrowUp') > -1 && this.onGround()){
+                this.vy = -30;
+            }else{
+                this.speed = 0;
+            }
+            //horizontal movement
+            this.x += this.speed;
+            if(this.x < 0) this.x = 0;
+            if(this.x > this.gameWidth-this.width) this.x = this.gameWidth-this.width;
+            //vertical movement
+            this.y += this.vy;
+            if(!this.onGround()){
+                this.vy += this.weight;
+                this.frameY = 1;
+                this.maxFrame = 5;
+            }else{
+                this.vy = 0;
+                this.frameY = 0;
+                this.maxFrame = 8;
+            }
+            if(this.y > this.gameHeight-this.height) this.y = this.gameHeight-this.height;
         }
-        draw(){
-            this.enemies.forEach(object=>object.draw(this.ctx));
+        onGround(){
+            return this.y >= this.gameHeight-this.height;
         }
-        #addNewEnemy(){
-            const randomEnemy = this.enemyTypes[Math.floor(Math.random()*this.enemyTypes.length)];
-            if(randomEnemy == 'worm') this.enemies.push(new Worm(this));
-            else if(randomEnemy == 'ghost') this.enemies.push(new Ghost(this));
-            else if(randomEnemy == 'spider') this.enemies.push(new Spider(this));
-            // this.enemies.sort(function(a,b){
-            //     return a.y - b.y;
-            // });
+    }
+
+    class Background{
+        constructor(gameWidth,gameHeight){
+            this.gameWidth = gameWidth;
+            this.gameHeight = gameHeight;
+            this.image = document.getElementById('backgroundImage');
+            this.x = 0;
+            this.y = 0;
+            this.width = 2400;
+            this.height = 720;
+            this.speed = 20;
+        }
+        draw(context){
+            context.drawImage(this.image,this.x,this.y,this.width,this.height);
+            context.drawImage(this.image,this.x+this.width-this.speed,this.y,this.width,this.height);
+        }
+        update(){
+            this.x -= this.speed;
+            if(this.x < 0-this.width) this.x = 0;
         }
     }
 
     class Enemy{
-        constructor(game){
-            this.game = game;
-            this.x = this.game.width;
-            this.y = Math.random()*this.game.height;
-            this.width = 100;
-            this.height = 100;
-            this.markedForDeletion = false;
+        constructor(gameWidth,gameHeight){
+            this.gameWidth = gameWidth;
+            this.gameHeight = gameHeight;
+            this.width = 160;
+            this.height = 119;
+            this.image = document.getElementById('enemyImage');
+            this.x = this.gameWidth;
+            this.y = this.gameHeight-this.height;
             this.frameX = 0;
             this.maxFrame = 5;
-            this.frameInterval = 10;
+            this.fps = 20;
             this.frameTimer = 0;
+            this.frameInterval = 1000/this.fps;
+            this.speed = 8;
+            this.markedForDeletion = false;
+        }
+        draw(context){
+            // context.strokeStyle='white'
+            // context.strokeRect(this.x,this.y,this.width,this.height);
+            // context.beginPath();
+            // context.arc(this.x+this.width/2,this.y+this.height/2,this.width/2,0,Math.PI*2);
+            // context.stroke();
+            // context.strokeStyle = 'blue';
+            // context.beginPath();
+            // context.arc(this.x, this.y, this.width/2,0,Math.PI*2);
+            // context.stroke();
+            context.drawImage(this.image,this.frameX * this.width,0,this.width,this.height,this.x,this.y,this.width,this.height);
         }
         update(deltatime){
-            this.x -= this.vx * deltatime;
-            if(this.x < 0-this.width) this.markedForDeletion = true;
             if(this.frameTimer > this.frameInterval){
+                if(this.frameX >= this.maxFrame) this.frameX = 0;
+                else this.frameX++;
                 this.frameTimer = 0;
-                if(this.frameX < this.maxFrame) this.frameX ++;
-                else this.frameX = 0;
-            }else {
-                this.frameTimer += deltatime ;
+            }else{
+                this.frameTimer += deltatime;
             }
+            this.x-=this.speed;
+            if(this.x < 0-this.width){
+                this.markedForDeletion = true;
+                score++;
+            } 
         }
-        draw(ctx){ 
-            ctx.drawImage(this.image,this.spriteWidth * this.frameX,0,this.spriteWidth,this.spriteHeidht,this.x,this.y,this.width,this.height);
+    }
+    
+    function handleEnemies(deltatime){
+        if(enemyTimer > enemyInterval + randomEnemyInterval){
+            enemies.push(new Enemy(canvas.width,canvas.height));
+            enemyTimer = 0;
+        }else{
+            enemyTimer += deltatime;
+        }
+        enemies.forEach(enemy=>{
+            enemy.draw(ctx);
+            enemy.update(deltatime);
+        });
+        enemies = enemies.filter(enemy=>!enemy.markedForDeletion);
+    }
+
+    function displayStatusText(context){
+        context.fillStyle = 'black';
+        context.font = "40px Helvetica";
+        context.fillText('Score : '+score,20,50);
+        context.fillStyle = 'white';
+        context.font = "40px Helvetica";
+        context.fillText('Score : '+score,22,52);
+        if(gameOver){
+            context.textAlign ='center';
+            context.fillStyle = 'black';
+            context.fillText('Game Over, try again!',canvas.width/2,200);
+            context.textAlign ='center';
+            context.fillStyle = 'white';
+            context.fillText('Game Over, try again!',canvas.width/2+2,202);
         }
     }
 
-    class Worm extends Enemy{
-        constructor(game){
-            super(game);
-            this.spriteWidth = 229;
-            this.spriteHeidht = 171;
-            this.width = this.spriteWidth/2;
-            this.height = this.spriteHeidht/2;
-            this.x = this.game.width;
-            this.y =(this.game.height-this.height);
-            this.image = worm;
-            this.vx = Math.random()*0.1 + 0.2;
-        }
-    }
-
-    class Ghost extends Enemy{
-        constructor(game){
-            super(game);
-            this.spriteWidth = 261;
-            this.spriteHeidht = 209;
-            this.width = this.spriteWidth/2;
-            this.height = this.spriteHeidht/2;
-            this.x = this.game.width;
-            this.y = Math.random()*this.game.height*0.6;
-            this.image = ghost;
-            this.vx = Math.random()*0.2 + 0.2;
-            this.angle = 0;
-            this.curve = Math.random()*3;
-        }
-        update(deltatime){
-            super.update(deltatime);
-            this.y += Math.sin(this.angle) * this.curve;
-            this.angle += 0.04;
-        }
-        draw(ctx){
-            ctx.save();
-            ctx.globalAlpha = 0.7;
-            super.draw(ctx);
-            ctx.restore();
-        }
-    }
-
-    class Spider extends Enemy{
-        constructor(game){
-            super(game);
-            this.spriteWidth = 310;
-            this.spriteHeidht = 175;
-            this.width = this.spriteWidth/2;
-            this.height = this.spriteHeidht/2;
-            this.x =Math.random()* this.game.width;
-            this.y =0 - this.height;
-            this.image = spider;
-            this.vx = 0;
-            this.vy = Math.random() * 0.1 + 0.1;
-            this.maxLength = Math.random()*this.game.height;
-        }
-        update(deltatime){
-            super.update(deltatime);
-            if(this.y < 0-this.height*2) this.markedForDeletion = true;
-            this.y += this.vy * deltatime;
-            if(this.y > this.maxLength) this.vy *= -1;
-        }
-        draw(ctx){
-            ctx.beginPath();
-            ctx.moveTo(this.x + this.width/2,0);
-            ctx.lineTo(this.x + this.width/2,this.y + 10);
-            ctx.stroke();
-            super.draw(ctx);
-        }
-    }
+    const input = new InputHandler();
+    const player = new Player(canvas.width,canvas.height);
+    const background =new Background(canvas.width,canvas.height);
 
     let lastTime = 0;
-    const game = new Game(ctx,canvas.width,canvas.height);
-    function animate(timeStamp){
+    let enemyTimer = 0;
+    let enemyInterval = 1000;
+    let randomEnemyInterval = Math.random() * 1000 + 500;
+
+    function animate(timestamp){
+        const deltatime = timestamp - lastTime;
+        lastTime = timestamp;
         ctx.clearRect(0,0,canvas.width,canvas.height);
-        const deltatime = timeStamp - lastTime;
-        lastTime = timeStamp;
-        game.update(deltatime);
-        game.draw();
+        background.draw(ctx);
+        //background.update();
+        player.draw(ctx);
+        player.update(input,deltatime,enemies);
+        handleEnemies(deltatime);
+        displayStatusText(ctx);
+        if(!gameOver)requestAnimationFrame(animate);
 
-        requestAnimationFrame(animate);
     }
-    animate(0)
 
+    animate(0);
 });
